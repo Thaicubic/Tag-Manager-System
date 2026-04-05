@@ -265,32 +265,50 @@
         }
 
         // =========================================================
-        // ระบบดึงรูปจาก Google Drive อัตโนมัติ (ไม่โหลดล่วงหน้า)
-        // =========================================================
-        // =========================================================
         // อัปเดตระบบดึงรูปจาก Google Drive (แก้ปัญหาภาพไม่แสดง)
         // =========================================================
         function extractDriveImageId(url) {
             if (!url) return null;
             const match = url.match(/[-\w]{25,}/);
             if (match) {
-                // ใช้ลิงก์รูปแบบ Thumbnail ของ Google เพื่อแก้ปัญหาภาพโดนบล็อกและโหลดไวขึ้น (w800 คือความกว้าง 800px)
-                return `https://drive.google.com/thumbnail?id=${match[0]}&sz=w800`;
+                // คืนค่าเฉพาะ ID ของรูป เพื่อนำไปเข้ากระบวนการดึงรูปแบบใหม่
+                return match[0];
             }
             return url; 
         }
 
         function buildTagHTML(item, dateStr) {
-            const rawImageLink = item['Photo base64'] || item['Image URL'] || item['Photo'];
-            const finalImageUrl = extractDriveImageId(rawImageLink);
+            // ค้นหาคอลัมน์รูปอัตโนมัติ (เผื่อชื่อคอลัมน์ใน Sheet พิมพ์ไม่ตรงเป๊ะ)
+            let rawImageLink = item['Photo base64'] || item['Image URL'] || item['Photo'];
+            if (!rawImageLink) {
+                for (let key in item) {
+                    if (key.toLowerCase().includes('photo') || key.toLowerCase().includes('image') || key.toLowerCase().includes('base64')) {
+                        rawImageLink = item[key];
+                        break;
+                    }
+                }
+            }
 
+            const fileIdOrUrl = extractDriveImageId(rawImageLink);
             let imageTag = '<span class="text-gray-300 text-xs font-bold">ไม่มีรูปภาพ</span>';
             
-            if (finalImageUrl && finalImageUrl.length > 5) {
-                // หากดึงรูปไม่ได้ (เช่น ลืมเปิดสิทธิ์เข้าถึง) จะแสดงข้อความแจ้งเตือนสีแดงแทน
-                imageTag = `<img src="${finalImageUrl}" alt="Part Photo" 
-                                 onload="this.style.display='block'" 
-                                 onerror="this.outerHTML='<span class=\\'text-red-500 text-[10px] font-bold text-center\\'>ไม่สามารถโหลดรูปได้<br>(ลืมเปิดแชร์สาธารณะ?)</span>'">`;
+            if (fileIdOrUrl && fileIdOrUrl.length > 5) {
+                // ตรวจสอบว่าเป็น ID ของ Google Drive หรือไม่ (ไม่มี / และยาว 25 ตัวขึ้นไป)
+                if (!fileIdOrUrl.includes('/') && fileIdOrUrl.length >= 25) {
+                    // สร้าง URL สองแบบไว้สลับกันหากเกิดการบล็อกจากบราวเซอร์
+                    const url1 = `https://drive.google.com/uc?export=view&id=${fileIdOrUrl}`;
+                    const url2 = `https://lh3.googleusercontent.com/d/${fileIdOrUrl}`;
+                    
+                    // หากรูปแรกโหลดไม่สำเร็จ (onerror) โค้ดจะสลับไปดึงรูปที่สองให้ทันที
+                    imageTag = `<img src="${url1}" alt="Part Photo" 
+                                     onload="this.style.display='block'" 
+                                     onerror="if(!this.dataset.retried){ this.dataset.retried='true'; this.src='${url2}'; } else { this.outerHTML='<span class=\\'text-red-500 text-[10px] font-bold text-center\\'>โหลดรูปไม่ได้<br>(ลืมเปิดแชร์ลิงก์เป็นสาธารณะ?)</span>'; }">`;
+                } else {
+                    // หากเป็น URL ธรรมดาที่ไม่ใช่ Google Drive
+                    imageTag = `<img src="${fileIdOrUrl}" alt="Part Photo" 
+                                     onload="this.style.display='block'" 
+                                     onerror="this.outerHTML='<span class=\\'text-red-500 text-[10px] font-bold text-center\\'>ลิงก์ไม่ถูกต้อง</span>'">`;
+                }
             }
 
             return `
