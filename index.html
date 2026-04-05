@@ -7,129 +7,196 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        /* รูปแบบเฉพาะสำหรับการพิมพ์ (Print) */
+        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap');
+        
+        body { font-family: 'Sarabun', sans-serif; background-color: #f3f4f6; }
+
+        /* การจัดรูปแบบตาราง Tag */
+        .tag-box {
+            width: 100%; height: 100%; border: 2px solid #000;
+            border-collapse: collapse; background: #fff;
+        }
+        .tag-box td { border: 1px solid #000; padding: 4px 8px; font-size: 11px; vertical-align: middle; }
+        .tag-box .font-bold { font-weight: 700; }
+        .tag-img-container {
+            width: 100%; height: 60px; display: flex; align-items: center; justify-content: center;
+        }
+        .tag-img-container img { max-width: 100%; max-height: 100%; object-fit: contain; }
+
+        /* =========================================
+           ตั้งค่าสำหรับการพิมพ์ A4 (Print Media)
+           ========================================= */
+        @page {
+            size: A4 portrait; /* ล็อกขนาดกระดาษ A4 แนวตั้ง */
+            margin: 0; /* ลบ Margin ของเบราว์เซอร์ออกเพื่อให้เราคุมเอง */
+        }
         @media print {
-            body * { visibility: hidden; }
-            #print-area, #print-area * { visibility: visible; }
-            #print-area {
-                position: absolute;
-                left: 0; top: 0;
-                width: 210mm; /* A4 Width */
-                display: grid;
-                grid-template-columns: 1fr 1fr; /* แบ่ง 2 คอลัมน์ */
-                grid-template-rows: repeat(5, 1fr); /* แบ่ง 5 แถว = 10 Tag ต่อหน้า */
-                gap: 5mm;
-                padding: 5mm;
-                box-sizing: border-box;
-            }
+            body { background: #fff; }
             .no-print { display: none !important; }
             
-            /* กำหนดเส้นขอบของ Tag ตอนพิมพ์ให้ชัดเจน */
-            .tag-table { width: 100%; border-collapse: collapse; font-family: sans-serif; font-size: 10px; border: 2px solid black; }
-            .tag-table td { border: 1px solid black; padding: 4px; }
-            .bg-gray-200 { background-color: #e5e7eb !important; -webkit-print-color-adjust: exact; }
+            /* พื้นที่สำหรับการพิมพ์ */
+            #print-area {
+                display: grid !important;
+                grid-template-columns: 1fr 1fr; /* 2 คอลัมน์ */
+                grid-template-rows: repeat(5, 1fr); /* 5 แถว */
+                width: 210mm;
+                height: 297mm;
+                padding: 10mm; /* ขอบกระดาษ */
+                gap: 5mm; /* ช่องไฟระหว่าง Tag */
+                box-sizing: border-box;
+                page-break-after: always; /* ตัดหน้าใหม่เมื่อครบ 1 แผ่น */
+            }
+            .tag-box td { font-size: 10px; /* ลดฟอนต์ลงนิดหน่อยตอนพิมพ์ให้พอดีช่อง */ }
         }
-
-        /* รูปแบบ Tag สำหรับหน้าจอ Preview */
-        .tag-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-        .tag-table td { border: 1px solid #000; padding: 6px; }
     </style>
 </head>
-<body class="bg-gray-100 p-6">
+<body class="text-gray-800">
 
-    <div id="main-view" class="max-w-6xl mx-auto bg-white p-6 rounded-lg shadow-md">
-        <h1 class="text-2xl font-bold mb-4"><i class="fa-solid fa-tags text-blue-600"></i> TAG MANAGER SYSTEM</h1>
-        
-        <div class="relative mb-6">
-            <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                <i class="fa-solid fa-magnifying-glass text-gray-500"></i>
+    <div class="no-print p-6 max-w-[1400px] mx-auto">
+        <h1 class="text-3xl font-bold mb-6 text-gray-800 border-b-2 border-blue-500 pb-2 inline-block">
+            <i class="fa-solid fa-tags text-blue-600"></i> TAG MANAGER SYSTEM
+        </h1>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <div class="lg:col-span-2 bg-white rounded-xl shadow-lg p-6">
+                <div class="relative mb-6">
+                    <div class="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
+                        <i class="fa-solid fa-magnifying-glass text-gray-400 text-lg"></i>
+                    </div>
+                    <input type="text" id="searchInput" onkeyup="filterTable()" 
+                           class="bg-gray-50 border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full pl-12 p-3 shadow-sm" 
+                           placeholder="ค้นหาที่นี่ พิมพ์ชื่อ Model / Part name / Part no.">
+                </div>
+
+                <div id="loading" class="text-center py-10">
+                    <i class="fa-solid fa-spinner fa-spin text-4xl text-blue-500 mb-3"></i>
+                    <p class="text-gray-500 text-lg">กำลังโหลดฐานข้อมูลจาก Google Sheets...</p>
+                </div>
+
+                <div class="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
+                    <table class="w-full text-sm text-left" id="dataTable" style="display: none;">
+                        <thead class="text-xs text-gray-700 uppercase bg-gray-100 border-b-2 border-gray-300">
+                            <tr>
+                                <th class="px-4 py-3">No.</th>
+                                <th class="px-4 py-3">Model</th>
+                                <th class="px-4 py-3">Part name</th>
+                                <th class="px-4 py-3">Part no.</th>
+                                <th class="px-4 py-3 text-center">Pcs/Box</th>
+                                <th class="px-4 py-3">Customer</th>
+                                <th class="px-4 py-3 text-center">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody" class="divide-y divide-gray-200">
+                            </tbody>
+                    </table>
+                </div>
             </div>
-            <input type="text" id="searchInput" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full pl-10 p-2.5" placeholder="ค้นหาที่นี่ พิมพ์ชื่อ Model / Part name / Part no." onkeyup="filterTable()">
-        </div>
 
-        <div id="loading" class="text-center py-4 text-gray-500"><i class="fa-solid fa-spinner fa-spin"></i> กำลังโหลดข้อมูลจากฐานข้อมูล...</div>
+            <div class="lg:col-span-1 bg-white rounded-xl shadow-lg p-6 sticky top-6 self-start">
+                <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-desktop text-gray-600"></i> Preview
+                </h2>
+                
+                <div class="mb-4 bg-blue-50 p-4 rounded-lg border border-blue-100">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">ตั้งค่าวันที่พิมพ์ (Date)</label>
+                    <input type="date" id="printDate" class="w-full border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500" onchange="updatePreviewUI()">
+                </div>
 
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm text-left text-gray-500" id="dataTable" style="display: none;">
-                <thead class="text-xs text-gray-700 uppercase bg-gray-200">
-                    <tr>
-                        <th class="px-6 py-3">No.</th>
-                        <th class="px-6 py-3">Model</th>
-                        <th class="px-6 py-3">Part name</th>
-                        <th class="px-6 py-3">Part no.</th>
-                        <th class="px-6 py-3">Pcs/Box</th>
-                        <th class="px-6 py-3">Customer</th>
-                        <th class="px-6 py-3 text-center">Action</th>
-                    </tr>
-                </thead>
-                <tbody id="tableBody">
-                    </tbody>
-            </table>
+                <div id="single-preview-container" class="mb-6 p-4 bg-gray-100 rounded-lg flex justify-center items-center min-h-[250px] shadow-inner">
+                    <p class="text-gray-400">กรุณาเลือก (Preview) ชิ้นงานจากตารางด้านซ้าย</p>
+                </div>
+
+                <button id="printBtn" onclick="triggerPrint()" disabled 
+                        class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition duration-200 flex justify-center items-center gap-2 text-lg">
+                    <i class="fa-solid fa-print"></i> สั่งพิมพ์กระดาษ A4 (10 แผ่น)
+                </button>
+            </div>
+            
         </div>
     </div>
 
-    <div id="preview-view" class="max-w-6xl mx-auto bg-white p-6 rounded-lg shadow-md hidden no-print">
-        <div class="flex justify-between items-center mb-4 bg-gray-100 p-4 rounded">
-            <div class="flex items-center gap-4">
-                <label class="font-bold">ตั้งค่าวันที่:</label>
-                <input type="date" id="printDate" class="border p-1 rounded" value="">
-                <button onclick="updatePreviewDate()" class="bg-blue-500 text-white px-3 py-1 rounded text-sm">อัปเดตวันที่</button>
-            </div>
-            <div class="flex gap-2">
-                <button onclick="window.print()" class="bg-blue-800 text-white px-4 py-2 rounded shadow hover:bg-blue-900"><i class="fa-solid fa-print"></i> พิมพ์ (Ctrl+P)</button>
-                <button onclick="window.print()" class="bg-red-600 text-white px-4 py-2 rounded shadow hover:bg-red-700"><i class="fa-solid fa-file-pdf"></i> บันทึก PDF</button>
-                <button onclick="closePreview()" class="bg-gray-500 text-white px-4 py-2 rounded shadow hover:bg-gray-600"><i class="fa-solid fa-xmark"></i> ปิด</button>
-            </div>
+    <div id="print-area" style="display: none;">
         </div>
-        <div class="text-center text-sm text-gray-500 mb-4">ⓘ ระบบจำลองการพิมพ์: กระดาษ A4 1 หน้า จะมี 10 Tags พอดี</div>
-        
-        <div id="print-area" class="w-full">
-            </div>
-    </div>
 
     <script>
-        // *** นำ URL ของ Web App จาก Google Apps Script มาใส่ตรงนี้ ***
+        // =========================================================
+        // 🔴🔴🔴 นำ URL Web App ของ Google Apps Script มาใส่ตรงนี้ 🔴🔴🔴
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzqCKW-BQhoqusizjbi40-QeNq8mogyh4ynT7O6WqQtSUa7TSOpUP95OKGKUCty0S6Udw/exec"; 
+        // =========================================================
         
         let dbData = [];
-        let currentPrintItem = null;
+        let selectedItem = null;
 
-        // โหลดข้อมูลเมื่อเปิดหน้าเว็บ
+        // ฟังก์ชันเริ่มทำงานเมื่อเปิดหน้าเว็บ
         window.onload = async () => {
-            document.getElementById('printDate').valueAsDate = new Date(); // Default วันนี้
+            document.getElementById('printDate').valueAsDate = new Date();
             
             try {
                 const response = await fetch(SCRIPT_URL);
+                if (!response.ok) throw new Error("Network response was not ok");
                 dbData = await response.json();
+                
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('dataTable').style.display = 'table';
                 renderTable(dbData);
             } catch (error) {
-                document.getElementById('loading').innerHTML = "<span class='text-red-500'>เกิดข้อผิดพลาดในการโหลดข้อมูล กรุณาตรวจสอบ URL หรือสิทธิ์การเข้าถึง Web App</span>";
+                document.getElementById('loading').innerHTML = `
+                    <div class="text-red-500">
+                        <i class="fa-solid fa-circle-exclamation text-4xl mb-2"></i>
+                        <p class="font-bold">เกิดข้อผิดพลาดในการโหลดข้อมูล</p>
+                        <p class="text-sm">โปรดตรวจสอบ Web App URL ในโค้ดว่าถูกต้อง และตั้งค่า Anyone แล้วหรือไม่</p>
+                    </div>`;
+                console.error(error);
             }
         };
 
+        // วาดตารางข้อมูล
         function renderTable(data) {
             const tbody = document.getElementById('tableBody');
             tbody.innerHTML = '';
+            
+            if(data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-gray-500">ไม่พบข้อมูล</td></tr>`;
+                return;
+            }
+
             data.forEach((item, index) => {
                 const tr = document.createElement('tr');
-                tr.className = "bg-white border-b hover:bg-gray-50";
+                tr.className = "hover:bg-blue-50 transition duration-150";
+                
+                // แปลง object เป็น string สำหรับส่งเข้าฟังก์ชัน
+                const itemJson = encodeURIComponent(JSON.stringify(item));
+
                 tr.innerHTML = `
-                    <td class="px-6 py-4">${index + 1}</td>
-                    <td class="px-6 py-4 font-medium text-gray-900">${item['Model'] || '-'}</td>
-                    <td class="px-6 py-4">${item['Part name'] || '-'}</td>
-                    <td class="px-6 py-4">${item['Part no'] || '-'}</td>
-                    <td class="px-6 py-4">${item['Qty pcs'] || '-'}</td>
-                    <td class="px-6 py-4">${item['Customer'] || '-'}</td>
-                    <td class="px-6 py-4 flex gap-2 justify-center">
-                        <button onclick='openPreview(${JSON.stringify(item)})' class="text-blue-500 hover:text-blue-700" title="Preview / Print"><i class="fa-solid fa-print text-lg"></i></button>
+                    <td class="px-4 py-3 font-semibold">${index + 1}</td>
+                    <td class="px-4 py-3">${item['Model'] || '-'}</td>
+                    <td class="px-4 py-3">${item['Part name'] || '-'}</td>
+                    <td class="px-4 py-3">${item['Part no'] || '-'}</td>
+                    <td class="px-4 py-3 text-center font-bold text-blue-600">${item['Qty pcs'] || '-'}</td>
+                    <td class="px-4 py-3">${item['Customer'] || '-'}</td>
+                    <td class="px-4 py-3 text-center">
+                        <div class="flex flex-wrap gap-2 justify-center">
+                            <button onclick="selectForPreview('${itemJson}')" class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200 font-semibold" title="ดูตัวอย่าง">
+                                <i class="fa-solid fa-eye"></i> Preview
+                            </button>
+                            <button onclick="requestEdit('${item['Part no']}')" class="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded hover:bg-yellow-200 font-semibold" title="ขอแก้ไข">
+                                <i class="fa-solid fa-pen-to-square"></i> ขอแก้ไข
+                            </button>
+                            <button onclick="downloadTag('${itemJson}')" class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded hover:bg-green-200 font-semibold" title="ดาวโหลด">
+                                <i class="fa-solid fa-download"></i> ดาวโหลด
+                            </button>
+                            <button onclick="printDirectly('${itemJson}')" class="text-xs bg-gray-800 text-white px-2 py-1 rounded hover:bg-gray-900 font-semibold" title="พิมพ์ด่วน">
+                                <i class="fa-solid fa-print"></i> พิมพ์
+                            </button>
+                        </div>
                     </td>
                 `;
                 tbody.appendChild(tr);
             });
         }
 
+        // ระบบค้นหา
         function filterTable() {
             const query = document.getElementById('searchInput').value.toLowerCase();
             const filtered = dbData.filter(item => {
@@ -140,82 +207,133 @@
             renderTable(filtered);
         }
 
-        // สร้าง HTML สำหรับ Tag 1 ใบ
-        function createTagHTML(item, dateStr) {
+        // =========================================================
+        // โครงสร้าง HTML ของ Tag 1 ใบ (ใช้ร่วมกันทั้งหน้าจอและตอนพิมพ์)
+        // =========================================================
+        function buildTagHTML(item, dateStr) {
+            // ตรวจสอบและจัดการภาพ Base64
+            let imageTag = '';
+            if (item['Photo base64'] && item['Photo base64'].length > 20) {
+                imageTag = `<img src="${item['Photo base64']}" alt="Part Photo">`;
+            } else {
+                imageTag = `<span class="text-gray-300 text-xs">NO IMAGE</span>`;
+            }
+
             return `
-                <table class="tag-table">
+                <table class="tag-box bg-white">
                     <tr>
-                        <td class="font-bold w-1/4">CUSTOMER</td>
-                        <td class="text-center font-bold text-lg" colspan="3">${item['Customer'] || ''}</td>
+                        <td class="font-bold w-[25%] uppercase bg-gray-100">Customer</td>
+                        <td class="text-center font-bold text-lg uppercase" colspan="3">${item['Customer'] || ''}</td>
                     </tr>
                     <tr>
-                        <td class="font-bold">MODEL</td>
-                        <td class="text-center font-bold">${item['Model'] || ''}</td>
-                        <td class="font-bold text-center w-1/6">DATE</td>
-                        <td class="text-center w-1/4">${dateStr}</td>
+                        <td class="font-bold uppercase bg-gray-100">Model</td>
+                        <td class="text-center font-bold uppercase w-[35%]">${item['Model'] || ''}</td>
+                        <td class="font-bold text-center w-[15%] uppercase bg-gray-100">Date</td>
+                        <td class="text-center font-bold w-[25%]">${dateStr}</td>
                     </tr>
                     <tr>
-                        <td class="font-bold text-xs">PART NAME</td>
-                        <td class="text-center font-bold text-sm" colspan="3">${item['Part name'] || ''}</td>
+                        <td class="font-bold text-xs uppercase bg-gray-100">Part Name</td>
+                        <td class="text-center font-bold text-sm uppercase" colspan="3">${item['Part name'] || ''}</td>
                     </tr>
                     <tr>
-                        <td class="font-bold text-xs">PART NUMBER</td>
-                        <td class="text-center font-bold text-sm" colspan="3">${item['Part no'] || ''}</td>
+                        <td class="font-bold text-xs uppercase bg-gray-100">Part Number</td>
+                        <td class="text-center font-bold text-sm uppercase" colspan="3">${item['Part no'] || ''}</td>
                     </tr>
                     <tr>
-                        <td class="font-bold">QUANTITY</td>
-                        <td class="text-center"><span class="font-bold text-lg">${item['Qty pcs'] || ''}</span> Pcs.</td>
-                        <td class="text-center align-middle" colspan="2" rowspan="2">
-                            ${item['Photo base64'] ? `<img src="${item['Photo base64']}" class="max-h-12 mx-auto object-contain">` : ''}
+                        <td class="font-bold uppercase bg-gray-100">Quantity</td>
+                        <td class="text-center"><span class="font-bold text-xl">${item['Qty pcs'] || '0'}</span> Pcs.</td>
+                        <td class="text-center align-middle p-0" colspan="2" rowspan="2">
+                            <div class="tag-img-container">${imageTag}</div>
                         </td>
                     </tr>
                     <tr>
-                        <td class="font-bold">OPERATOR</td>
+                        <td class="font-bold uppercase bg-gray-100">Operator</td>
                         <td></td>
                     </tr>
                     <tr>
-                        <td class="font-bold text-xs" colspan="4">THAI CUBIC TECHNOLOGY CO.,LTD.</td>
+                        <td class="font-bold text-[9px] text-center uppercase tracking-widest bg-gray-50" colspan="4">
+                            Thai Cubic Technology Co.,Ltd.
+                        </td>
                     </tr>
                 </table>
             `;
         }
 
-        function openPreview(item) {
-            currentPrintItem = item;
-            document.getElementById('main-view').classList.add('hidden');
-            document.getElementById('preview-view').classList.remove('hidden');
-            generateTagsForPrint();
-        }
+        // =========================================================
+        // การจัดการ Action Buttons
+        // =========================================================
 
-        function updatePreviewDate() {
-            generateTagsForPrint();
-        }
-
-        function generateTagsForPrint() {
-            if (!currentPrintItem) return;
-            
-            // จัดการ Format วันที่ (DD/MM/YYYY)
+        function getFormattedDate() {
             const dateInput = document.getElementById('printDate').value;
-            let dateStr = "";
-            if(dateInput) {
-                const d = new Date(dateInput);
-                dateStr = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth()+1).padStart(2, '0')}/${d.getFullYear()}`;
-            }
+            if(!dateInput) return "";
+            const d = new Date(dateInput);
+            return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth()+1).padStart(2, '0')}/${d.getFullYear()}`;
+        }
 
-            const printArea = document.getElementById('print-area');
-            printArea.innerHTML = '';
+        // 1. กด Preview
+        function selectForPreview(encodedItem) {
+            selectedItem = JSON.parse(decodeURIComponent(encodedItem));
+            updatePreviewUI();
             
-            // จำลองการสร้าง 10 Tags (สำหรับ 1 หน้า A4)
-            for(let i=0; i<10; i++) {
+            // เปิดใช้งานปุ่มพิมพ์หลัก
+            const printBtn = document.getElementById('printBtn');
+            printBtn.disabled = false;
+            printBtn.classList.remove('bg-gray-300');
+        }
+
+        function updatePreviewUI() {
+            if (!selectedItem) return;
+            const dateStr = getFormattedDate();
+            const previewContainer = document.getElementById('single-preview-container');
+            
+            // แสดง Tag ขนาดจำลอง 1 ใบทางขวามือ
+            previewContainer.innerHTML = `
+                <div class="w-full shadow-md bg-white">
+                    ${buildTagHTML(selectedItem, dateStr)}
+                </div>
+            `;
+        }
+
+        // 2. กดขอแก้ไข
+        function requestEdit(partNo) {
+            // จำลองการขอแก้ไข 
+            alert(`ระบบได้บันทึกคำขอแก้ไขข้อมูลสำหรับ Part No: ${partNo} เรียบร้อยแล้ว\n(สามารถเชื่อมต่อ API แจ้งเตือนไปยัง Line/Email ได้ในอนาคต)`);
+        }
+
+        // 3. กดดาวน์โหลด (เปิดหน้าต่าง Save as PDF)
+        function downloadTag(encodedItem) {
+            selectForPreview(encodedItem);
+            alert("เคล็ดลับ: เมื่อหน้าต่าง Print เปิดขึ้นมา ให้เปลี่ยน Destination (เครื่องพิมพ์) เป็น 'Save as PDF' (บันทึกเป็น PDF)");
+            triggerPrint();
+        }
+
+        // 4. กดพิมพ์ด่วนจากตาราง
+        function printDirectly(encodedItem) {
+            selectForPreview(encodedItem);
+            triggerPrint();
+        }
+
+        // =========================================================
+        // ระบบพิมพ์ 10 แผ่นลง A4
+        // =========================================================
+        function triggerPrint() {
+            if (!selectedItem) return;
+            
+            const dateStr = getFormattedDate();
+            const printArea = document.getElementById('print-area');
+            printArea.innerHTML = ''; // ล้างของเก่า
+            
+            // สร้าง 10 Copies
+            for(let i = 0; i < 10; i++) {
                 const tagWrapper = document.createElement('div');
-                tagWrapper.innerHTML = createTagHTML(currentPrintItem, dateStr);
+                tagWrapper.innerHTML = buildTagHTML(selectedItem, dateStr);
+                // ตรวจสอบให้แน่ใจว่าความสูง 100% พอดีช่อง Grid
+                tagWrapper.style.height = "100%"; 
                 printArea.appendChild(tagWrapper);
             }
-        }
 
-        function closePreview() {
-            document.getElementById('preview-view').classList.add('hidden');
-            document.getElementById('main-view').classList.remove('hidden');
+            // สั่งพิมพ์ (Browser จะจัดการซ่อน UI ให้ตาม CSS @media print)
+            window.print();
         }
     </script>
 </body>
