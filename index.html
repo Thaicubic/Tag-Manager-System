@@ -19,34 +19,37 @@
         .tag-box td { border: 1px solid #000; padding: 4px 8px; font-size: 11px; vertical-align: middle; }
         .tag-box .font-bold { font-weight: 700; }
         .tag-img-container {
-            width: 100%; height: 60px; display: flex; align-items: center; justify-content: center;
+            width: 100%; height: 60px; display: flex; align-items: center; justify-content: center; overflow: hidden;
         }
         .tag-img-container img { max-width: 100%; max-height: 100%; object-fit: contain; }
 
         /* =========================================
-           ตั้งค่าสำหรับการพิมพ์ A4 (Print Media)
+           ตั้งค่าสำหรับการพิมพ์ A4 (ลดขนาดและจัดกลาง)
            ========================================= */
         @page {
-            size: A4 portrait; /* ล็อกขนาดกระดาษ A4 แนวตั้ง */
-            margin: 0; /* ลบ Margin ของเบราว์เซอร์ออกเพื่อให้เราคุมเอง */
+            size: A4 portrait;
+            margin: 0; /* ให้เบราว์เซอร์เลิกยุ่งกับขอบกระดาษ */
         }
         @media print {
             body { background: #fff; }
             .no-print { display: none !important; }
             
-            /* พื้นที่สำหรับการพิมพ์ */
             #print-area {
                 display: grid !important;
-                grid-template-columns: 1fr 1fr; /* 2 คอลัมน์ */
-                grid-template-rows: repeat(5, 1fr); /* 5 แถว */
-                width: 210mm;
-                height: 297mm;
-                padding: 10mm; /* ขอบกระดาษ */
-                gap: 5mm; /* ช่องไฟระหว่าง Tag */
+                grid-template-columns: 1fr 1fr;
+                grid-template-rows: repeat(5, 1fr);
+                /* ปรับขนาดให้เล็กกว่า A4 จริงเล็กน้อย เพื่อไม่ให้ล้นขอบเครื่องพิมพ์ */
+                width: 195mm; 
+                height: 282mm;
+                margin: 7.5mm auto; /* จัดให้อยู่กึ่งกลางกระดาษ */
+                gap: 4mm; /* ลดระยะห่างลง */
                 box-sizing: border-box;
-                page-break-after: always; /* ตัดหน้าใหม่เมื่อครบ 1 แผ่น */
+                page-break-after: always;
             }
-            .tag-box td { font-size: 10px; /* ลดฟอนต์ลงนิดหน่อยตอนพิมพ์ให้พอดีช่อง */ }
+            /* ลดขนาดฟอนต์และช่องว่างลงนิดนึงตอนพิมพ์ */
+            .tag-box { border: 1.5px solid #000; }
+            .tag-box td { font-size: 10px; padding: 3px 6px; }
+            .tag-img-container { height: 50px; }
         }
     </style>
 </head>
@@ -60,37 +63,59 @@
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
             <div class="lg:col-span-2 bg-white rounded-xl shadow-lg p-6">
-                <div class="relative mb-6">
-                    <div class="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
-                        <i class="fa-solid fa-magnifying-glass text-gray-400 text-lg"></i>
+                
+                <div class="flex flex-col md:flex-row justify-between gap-4 mb-4">
+                    <div class="relative w-full md:w-2/3">
+                        <div class="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
+                            <i class="fa-solid fa-magnifying-glass text-gray-400"></i>
+                        </div>
+                        <input type="text" id="searchInput" onkeyup="handleSearch()" 
+                               class="bg-gray-50 border border-gray-300 text-gray-900 rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full pl-12 p-2.5 shadow-sm" 
+                               placeholder="ค้นหาชื่อ Model / Part name / Part no.">
                     </div>
-                    <input type="text" id="searchInput" onkeyup="filterTable()" 
-                           class="bg-gray-50 border border-gray-300 text-gray-900 text-base rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full pl-12 p-3 shadow-sm" 
-                           placeholder="ค้นหาที่นี่ พิมพ์ชื่อ Model / Part name / Part no.">
+                    
+                    <div class="flex items-center gap-2 w-full md:w-1/3 justify-end">
+                        <label class="text-sm text-gray-600 whitespace-nowrap">แสดง:</label>
+                        <select id="itemsPerPage" onchange="changeItemsPerPage()" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5 shadow-sm">
+                            <option value="15" selected>15 รายการ</option>
+                            <option value="30">30 รายการ</option>
+                            <option value="50">50 รายการ</option>
+                            <option value="all">ทั้งหมด</option>
+                        </select>
+                    </div>
                 </div>
 
                 <div id="loading" class="text-center py-10">
                     <i class="fa-solid fa-spinner fa-spin text-4xl text-blue-500 mb-3"></i>
-                    <p class="text-gray-500 text-lg">กำลังโหลดฐานข้อมูลจาก Google Sheets...</p>
+                    <p class="text-gray-500 text-lg">กำลังโหลดฐานข้อมูล...</p>
                 </div>
 
-                <div class="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
+                <div class="overflow-x-auto rounded-lg border border-gray-200 shadow-sm mb-4">
                     <table class="w-full text-sm text-left" id="dataTable" style="display: none;">
                         <thead class="text-xs text-gray-700 uppercase bg-gray-100 border-b-2 border-gray-300">
                             <tr>
-                                <th class="px-4 py-3">No.</th>
-                                <th class="px-4 py-3">Model</th>
-                                <th class="px-4 py-3">Part name</th>
-                                <th class="px-4 py-3">Part no.</th>
-                                <th class="px-4 py-3 text-center">Pcs/Box</th>
-                                <th class="px-4 py-3">Customer</th>
-                                <th class="px-4 py-3 text-center">Action</th>
+                                <th class="px-3 py-3">NO.</th>
+                                <th class="px-3 py-3">CUSTOMER</th>
+                                <th class="px-3 py-3">MODEL</th>
+                                <th class="px-3 py-3">PART NAME</th>
+                                <th class="px-3 py-3">PART NUMBER</th>
+                                <th class="px-3 py-3 text-center">Pcs/Box</th>
+                                <th class="px-3 py-3 text-center">ACTION</th>
                             </tr>
                         </thead>
                         <tbody id="tableBody" class="divide-y divide-gray-200">
                             </tbody>
                     </table>
                 </div>
+
+                <div id="pagination" class="flex justify-between items-center text-sm" style="display: none;">
+                    <div class="text-gray-600" id="pageInfo">แสดง 1-15 จากทั้งหมด 0 รายการ</div>
+                    <div class="flex gap-2">
+                        <button onclick="prevPage()" id="btnPrev" class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded disabled:opacity-50"><i class="fa-solid fa-chevron-left"></i> ก่อนหน้า</button>
+                        <button onclick="nextPage()" id="btnNext" class="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded disabled:opacity-50">ถัดไป <i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
+                </div>
+
             </div>
 
             <div class="lg:col-span-1 bg-white rounded-xl shadow-lg p-6 sticky top-6 self-start">
@@ -99,124 +124,167 @@
                 </h2>
                 
                 <div class="mb-4 bg-blue-50 p-4 rounded-lg border border-blue-100">
-                    <label class="block text-sm font-semibold text-gray-700 mb-1">ตั้งค่าวันที่พิมพ์ (Date)</label>
-                    <input type="date" id="printDate" class="w-full border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500" onchange="updatePreviewUI()">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">ตั้งค่าวันที่พิมพ์</label>
+                    <input type="date" id="printDate" class="w-full border-gray-300 rounded-md shadow-sm p-2" onchange="updatePreviewUI()">
                 </div>
 
                 <div id="single-preview-container" class="mb-6 p-4 bg-gray-100 rounded-lg flex justify-center items-center min-h-[250px] shadow-inner">
-                    <p class="text-gray-400">กรุณาเลือก (Preview) ชิ้นงานจากตารางด้านซ้าย</p>
+                    <p class="text-gray-400 text-center">คลิกปุ่ม Preview<br>เพื่อโหลดภาพและดูตัวอย่าง</p>
                 </div>
 
                 <button id="printBtn" onclick="triggerPrint()" disabled 
-                        class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition duration-200 flex justify-center items-center gap-2 text-lg">
-                    <i class="fa-solid fa-print"></i> สั่งพิมพ์กระดาษ A4 (10 แผ่น)
+                        class="w-full bg-blue-600 text-white font-bold py-3 px-4 rounded-lg shadow-md hover:bg-blue-700 disabled:bg-gray-300 transition duration-200 flex justify-center items-center gap-2 text-lg">
+                    <i class="fa-solid fa-print"></i> พิมพ์ A4 (10 แผ่น)
                 </button>
             </div>
             
         </div>
     </div>
 
-    <div id="print-area" style="display: none;">
-        </div>
+    <div id="print-area" style="display: none;"></div>
 
     <script>
         // =========================================================
-        // 🔴🔴🔴 นำ URL Web App ของ Google Apps Script มาใส่ตรงนี้ 🔴🔴🔴
+        // 🔴 ใส่ URL Google Apps Script ที่นี่
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzqCKW-BQhoqusizjbi40-QeNq8mogyh4ynT7O6WqQtSUa7TSOpUP95OKGKUCty0S6Udw/exec"; 
         // =========================================================
         
-        let dbData = [];
+        let allData = [];
+        let filteredData = [];
         let selectedItem = null;
 
-        // ฟังก์ชันเริ่มทำงานเมื่อเปิดหน้าเว็บ
+        // การตั้งค่า Pagination
+        let currentPage = 1;
+        let itemsPerPage = 15;
+
         window.onload = async () => {
             document.getElementById('printDate').valueAsDate = new Date();
             
             try {
                 const response = await fetch(SCRIPT_URL);
-                if (!response.ok) throw new Error("Network response was not ok");
-                dbData = await response.json();
+                if (!response.ok) throw new Error("Network error");
+                allData = await response.json();
+                filteredData = [...allData];
                 
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('dataTable').style.display = 'table';
-                renderTable(dbData);
+                document.getElementById('pagination').style.display = 'flex';
+                
+                renderTable();
             } catch (error) {
-                document.getElementById('loading').innerHTML = `
-                    <div class="text-red-500">
-                        <i class="fa-solid fa-circle-exclamation text-4xl mb-2"></i>
-                        <p class="font-bold">เกิดข้อผิดพลาดในการโหลดข้อมูล</p>
-                        <p class="text-sm">โปรดตรวจสอบ Web App URL ในโค้ดว่าถูกต้อง และตั้งค่า Anyone แล้วหรือไม่</p>
-                    </div>`;
-                console.error(error);
+                document.getElementById('loading').innerHTML = `<div class="text-red-500 font-bold">เกิดข้อผิดพลาดในการโหลดข้อมูล</div>`;
             }
         };
 
-        // วาดตารางข้อมูล
-        function renderTable(data) {
+        // =========================================================
+        // ระบบค้นหา และ แบ่งหน้า (Pagination)
+        // =========================================================
+        function handleSearch() {
+            const query = document.getElementById('searchInput').value.toLowerCase();
+            filteredData = allData.filter(item => {
+                return (item['Model'] && item['Model'].toString().toLowerCase().includes(query)) ||
+                       (item['Part name'] && item['Part name'].toString().toLowerCase().includes(query)) ||
+                       (item['Part no'] && item['Part no'].toString().toLowerCase().includes(query));
+            });
+            currentPage = 1; // กลับไปหน้าแรกเสมอเมื่อค้นหา
+            renderTable();
+        }
+
+        function changeItemsPerPage() {
+            const val = document.getElementById('itemsPerPage').value;
+            itemsPerPage = val === 'all' ? filteredData.length : parseInt(val);
+            currentPage = 1;
+            renderTable();
+        }
+
+        function prevPage() {
+            if (currentPage > 1) { currentPage--; renderTable(); }
+        }
+
+        function nextPage() {
+            const maxPage = Math.ceil(filteredData.length / itemsPerPage);
+            if (currentPage < maxPage) { currentPage++; renderTable(); }
+        }
+
+        function renderTable() {
             const tbody = document.getElementById('tableBody');
             tbody.innerHTML = '';
             
-            if(data.length === 0) {
+            if(filteredData.length === 0) {
                 tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-gray-500">ไม่พบข้อมูล</td></tr>`;
+                updatePaginationUI(0, 0, 0);
                 return;
             }
 
-            data.forEach((item, index) => {
+            // คำนวณช่วงข้อมูลที่จะแสดง
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = Math.min(startIndex + itemsPerPage, filteredData.length);
+            const currentData = filteredData.slice(startIndex, endIndex);
+
+            currentData.forEach((item, index) => {
+                const actualIndex = startIndex + index + 1;
                 const tr = document.createElement('tr');
                 tr.className = "hover:bg-blue-50 transition duration-150";
                 
-                // แปลง object เป็น string สำหรับส่งเข้าฟังก์ชัน
                 const itemJson = encodeURIComponent(JSON.stringify(item));
 
                 tr.innerHTML = `
-                    <td class="px-4 py-3 font-semibold">${index + 1}</td>
-                    <td class="px-4 py-3">${item['Model'] || '-'}</td>
-                    <td class="px-4 py-3">${item['Part name'] || '-'}</td>
-                    <td class="px-4 py-3">${item['Part no'] || '-'}</td>
-                    <td class="px-4 py-3 text-center font-bold text-blue-600">${item['Qty pcs'] || '-'}</td>
-                    <td class="px-4 py-3">${item['Customer'] || '-'}</td>
-                    <td class="px-4 py-3 text-center">
-                        <div class="flex flex-wrap gap-2 justify-center">
-                            <button onclick="selectForPreview('${itemJson}')" class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200 font-semibold" title="ดูตัวอย่าง">
+                    <td class="px-3 py-3 font-semibold text-center">${actualIndex}</td>
+                    <td class="px-3 py-3">${item['Customer'] || '-'}</td>
+                    <td class="px-3 py-3">${item['Model'] || '-'}</td>
+                    <td class="px-3 py-3">${item['Part name'] || '-'}</td>
+                    <td class="px-3 py-3">${item['Part no'] || '-'}</td>
+                    <td class="px-3 py-3 text-center font-bold text-blue-600">${item['Qty pcs'] || '-'}</td>
+                    <td class="px-3 py-3 text-center">
+                        <div class="flex flex-wrap gap-1 justify-center">
+                            <button onclick="selectForPreview('${itemJson}')" class="text-[11px] bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200 font-semibold" title="ดูตัวอย่าง">
                                 <i class="fa-solid fa-eye"></i> Preview
                             </button>
-                            <button onclick="requestEdit('${item['Part no']}')" class="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded hover:bg-yellow-200 font-semibold" title="ขอแก้ไข">
-                                <i class="fa-solid fa-pen-to-square"></i> ขอแก้ไข
+                            <button onclick="requestEdit('${item['Part no']}')" class="text-[11px] bg-yellow-100 text-yellow-700 px-2 py-1 rounded hover:bg-yellow-200 font-semibold" title="ขอแก้ไข">
+                                <i class="fa-solid fa-pen-to-square"></i> แก้ไข
                             </button>
-                            <button onclick="downloadTag('${itemJson}')" class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded hover:bg-green-200 font-semibold" title="ดาวโหลด">
-                                <i class="fa-solid fa-download"></i> ดาวโหลด
+                            <button onclick="downloadTag('${itemJson}')" class="text-[11px] bg-green-100 text-green-700 px-2 py-1 rounded hover:bg-green-200 font-semibold" title="ดาวโหลด">
+                                <i class="fa-solid fa-download"></i>
                             </button>
-                            <button onclick="printDirectly('${itemJson}')" class="text-xs bg-gray-800 text-white px-2 py-1 rounded hover:bg-gray-900 font-semibold" title="พิมพ์ด่วน">
-                                <i class="fa-solid fa-print"></i> พิมพ์
+                            <button onclick="printDirectly('${itemJson}')" class="text-[11px] bg-gray-800 text-white px-2 py-1 rounded hover:bg-gray-900 font-semibold" title="พิมพ์ด่วน">
+                                <i class="fa-solid fa-print"></i>
                             </button>
                         </div>
                     </td>
                 `;
                 tbody.appendChild(tr);
             });
+
+            updatePaginationUI(startIndex + 1, endIndex, filteredData.length);
         }
 
-        // ระบบค้นหา
-        function filterTable() {
-            const query = document.getElementById('searchInput').value.toLowerCase();
-            const filtered = dbData.filter(item => {
-                return (item['Model'] && item['Model'].toString().toLowerCase().includes(query)) ||
-                       (item['Part name'] && item['Part name'].toString().toLowerCase().includes(query)) ||
-                       (item['Part no'] && item['Part no'].toString().toLowerCase().includes(query));
-            });
-            renderTable(filtered);
+        function updatePaginationUI(start, end, total) {
+            document.getElementById('pageInfo').innerText = `แสดง ${start}-${end} จากทั้งหมด ${total} รายการ`;
+            document.getElementById('btnPrev').disabled = currentPage === 1;
+            document.getElementById('btnNext').disabled = end >= total;
         }
 
         // =========================================================
-        // โครงสร้าง HTML ของ Tag 1 ใบ (ใช้ร่วมกันทั้งหน้าจอและตอนพิมพ์)
+        // ระบบดึงรูปจาก Google Drive อัตโนมัติ (ไม่โหลดล่วงหน้า)
         // =========================================================
+        function extractDriveImageId(url) {
+            if (!url) return null;
+            // ใช้ Regex ดึง ID ความยาว 25 ตัวอักษรขึ้นไป จากลิงก์ Google Drive ทุกรูปแบบ
+            const match = url.match(/[-\w]{25,}/);
+            if (match) {
+                return `https://drive.google.com/uc?export=view&id=${match[0]}`;
+            }
+            return url; // ถ้ายาวไม่พอหรือเป็นลิงก์เว็บอื่น ให้ใช้ลิงก์เดิม
+        }
+
         function buildTagHTML(item, dateStr) {
-            // ตรวจสอบและจัดการภาพ Base64
-            let imageTag = '';
-            if (item['Photo base64'] && item['Photo base64'].length > 20) {
-                imageTag = `<img src="${item['Photo base64']}" alt="Part Photo">`;
-            } else {
-                imageTag = `<span class="text-gray-300 text-xs">NO IMAGE</span>`;
+            // ระบบจะโหลดรูปตรงนี้ ซึ่งจะเกิดขึ้นก็ต่อเมื่อกดปุ่ม Preview เท่านั้น
+            const rawImageLink = item['Photo base64'] || item['Image URL'] || item['Photo'];
+            const finalImageUrl = extractDriveImageId(rawImageLink);
+
+            let imageTag = '<span class="text-gray-300 text-xs">NO IMAGE</span>';
+            if (finalImageUrl && finalImageUrl.length > 5) {
+                imageTag = `<img src="${finalImageUrl}" alt="Part Photo" onload="this.style.display='block'" onerror="this.style.display='none'">`;
             }
 
             return `
@@ -260,9 +328,8 @@
         }
 
         // =========================================================
-        // การจัดการ Action Buttons
+        // การทำงานของปุ่มต่างๆ
         // =========================================================
-
         function getFormattedDate() {
             const dateInput = document.getElementById('printDate').value;
             if(!dateInput) return "";
@@ -270,12 +337,10 @@
             return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth()+1).padStart(2, '0')}/${d.getFullYear()}`;
         }
 
-        // 1. กด Preview
         function selectForPreview(encodedItem) {
             selectedItem = JSON.parse(decodeURIComponent(encodedItem));
             updatePreviewUI();
             
-            // เปิดใช้งานปุ่มพิมพ์หลัก
             const printBtn = document.getElementById('printBtn');
             printBtn.disabled = false;
             printBtn.classList.remove('bg-gray-300');
@@ -284,56 +349,47 @@
         function updatePreviewUI() {
             if (!selectedItem) return;
             const dateStr = getFormattedDate();
-            const previewContainer = document.getElementById('single-preview-container');
-            
-            // แสดง Tag ขนาดจำลอง 1 ใบทางขวามือ
-            previewContainer.innerHTML = `
-                <div class="w-full shadow-md bg-white">
+            document.getElementById('single-preview-container').innerHTML = `
+                <div class="w-full shadow-md bg-white h-[200px]">
                     ${buildTagHTML(selectedItem, dateStr)}
                 </div>
             `;
         }
 
-        // 2. กดขอแก้ไข
         function requestEdit(partNo) {
-            // จำลองการขอแก้ไข 
-            alert(`ระบบได้บันทึกคำขอแก้ไขข้อมูลสำหรับ Part No: ${partNo} เรียบร้อยแล้ว\n(สามารถเชื่อมต่อ API แจ้งเตือนไปยัง Line/Email ได้ในอนาคต)`);
+            alert(`บันทึกคำขอแก้ไขข้อมูล Part No: ${partNo} เรียบร้อยแล้ว`);
         }
 
-        // 3. กดดาวน์โหลด (เปิดหน้าต่าง Save as PDF)
         function downloadTag(encodedItem) {
             selectForPreview(encodedItem);
-            alert("เคล็ดลับ: เมื่อหน้าต่าง Print เปิดขึ้นมา ให้เปลี่ยน Destination (เครื่องพิมพ์) เป็น 'Save as PDF' (บันทึกเป็น PDF)");
+            alert("เคล็ดลับ: ในหน้าจอถัดไป ให้เลือกเครื่องพิมพ์เป็น 'Save as PDF' (บันทึกเป็น PDF)");
             triggerPrint();
         }
 
-        // 4. กดพิมพ์ด่วนจากตาราง
         function printDirectly(encodedItem) {
             selectForPreview(encodedItem);
             triggerPrint();
         }
 
-        // =========================================================
-        // ระบบพิมพ์ 10 แผ่นลง A4
-        // =========================================================
         function triggerPrint() {
             if (!selectedItem) return;
             
             const dateStr = getFormattedDate();
             const printArea = document.getElementById('print-area');
-            printArea.innerHTML = ''; // ล้างของเก่า
+            printArea.innerHTML = ''; 
             
-            // สร้าง 10 Copies
+            // สร้าง 10 Copies เตรียมพิมพ์
             for(let i = 0; i < 10; i++) {
                 const tagWrapper = document.createElement('div');
                 tagWrapper.innerHTML = buildTagHTML(selectedItem, dateStr);
-                // ตรวจสอบให้แน่ใจว่าความสูง 100% พอดีช่อง Grid
                 tagWrapper.style.height = "100%"; 
                 printArea.appendChild(tagWrapper);
             }
 
-            // สั่งพิมพ์ (Browser จะจัดการซ่อน UI ให้ตาม CSS @media print)
-            window.print();
+            // หน่วงเวลาเล็กน้อยให้ภาพจาก Google Drive โหลดเสร็จก่อนสั่งพิมพ์
+            setTimeout(() => {
+                window.print();
+            }, 500);
         }
     </script>
 </body>
