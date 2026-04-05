@@ -267,24 +267,30 @@
         // =========================================================
         // ระบบดึงรูปจาก Google Drive อัตโนมัติ (ไม่โหลดล่วงหน้า)
         // =========================================================
+        // =========================================================
+        // อัปเดตระบบดึงรูปจาก Google Drive (แก้ปัญหาภาพไม่แสดง)
+        // =========================================================
         function extractDriveImageId(url) {
             if (!url) return null;
-            // ใช้ Regex ดึง ID ความยาว 25 ตัวอักษรขึ้นไป จากลิงก์ Google Drive ทุกรูปแบบ
             const match = url.match(/[-\w]{25,}/);
             if (match) {
-                return `https://drive.google.com/uc?export=view&id=${match[0]}`;
+                // ใช้ลิงก์รูปแบบ Thumbnail ของ Google เพื่อแก้ปัญหาภาพโดนบล็อกและโหลดไวขึ้น (w800 คือความกว้าง 800px)
+                return `https://drive.google.com/thumbnail?id=${match[0]}&sz=w800`;
             }
-            return url; // ถ้ายาวไม่พอหรือเป็นลิงก์เว็บอื่น ให้ใช้ลิงก์เดิม
+            return url; 
         }
 
         function buildTagHTML(item, dateStr) {
-            // ระบบจะโหลดรูปตรงนี้ ซึ่งจะเกิดขึ้นก็ต่อเมื่อกดปุ่ม Preview เท่านั้น
             const rawImageLink = item['Photo base64'] || item['Image URL'] || item['Photo'];
             const finalImageUrl = extractDriveImageId(rawImageLink);
 
-            let imageTag = '<span class="text-gray-300 text-xs">NO IMAGE</span>';
+            let imageTag = '<span class="text-gray-300 text-xs font-bold">ไม่มีรูปภาพ</span>';
+            
             if (finalImageUrl && finalImageUrl.length > 5) {
-                imageTag = `<img src="${finalImageUrl}" alt="Part Photo" onload="this.style.display='block'" onerror="this.style.display='none'">`;
+                // หากดึงรูปไม่ได้ (เช่น ลืมเปิดสิทธิ์เข้าถึง) จะแสดงข้อความแจ้งเตือนสีแดงแทน
+                imageTag = `<img src="${finalImageUrl}" alt="Part Photo" 
+                                 onload="this.style.display='block'" 
+                                 onerror="this.outerHTML='<span class=\\'text-red-500 text-[10px] font-bold text-center\\'>ไม่สามารถโหลดรูปได้<br>(ลืมเปิดแชร์สาธารณะ?)</span>'">`;
             }
 
             return `
