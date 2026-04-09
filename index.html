@@ -14,14 +14,53 @@
         /* การจัดรูปแบบตาราง Tag */
         .tag-box {
             width: 100%; height: 100%; border: 2px solid #000;
-            border-collapse: collapse; background: #fff;
+            border-collapse: collapse; background: #fff; table-layout: fixed;
         }
         .tag-box td { border: 1px solid #000; padding: 4px 8px; font-size: 11px; vertical-align: middle; }
         .tag-box .font-bold { font-weight: 700; }
+        .tag-top-label { height: 28px; }
+        .tag-top-value { height: 28px; }
+        .tag-singleline {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: clip;
+            line-height: 1.05;
+        }
+        .part-no-value {
+            font-size: 10px !important;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: clip;
+            line-height: 1.05;
+        }
+        .tag-company-cell {
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 0.18em;
+            font-size: 9px !important;
+            padding-top: 3px !important;
+            padding-bottom: 3px !important;
+        }
         .tag-img-container {
             width: 100%; height: 60px; display: flex; align-items: center; justify-content: center; overflow: hidden;
         }
         .tag-img-container img { max-width: 100%; max-height: 100%; object-fit: contain; }
+        .tag-v2 .tag-right-panel {
+            padding: 0 !important;
+        }
+        .tag-v2 .tag-right-panel-inner {
+            width: 100%; height: 100%; display: flex; flex-direction: column;
+        }
+        .tag-v2 .tag-id-head {
+            border-bottom: 1px solid #000; padding: 4px 8px; font-size: 11px; font-weight: 700;
+            text-transform: uppercase; background: #f3f4f6; min-height: 30px; display: flex; align-items: center;
+        }
+        .tag-v2 .tag-id-value {
+            border-bottom: 1px solid #000; padding: 3px 8px; font-size: 11px; font-weight: 700;
+            text-align: center; min-height: 28px; display: flex; align-items: center; justify-content: center;
+            white-space: nowrap; overflow: hidden; text-overflow: clip;
+        }
+        .tag-v2 .tag-img-container { height: 42px; }
 
         /* =========================================
            ตั้งค่าสำหรับการพิมพ์ A4 (ลดขนาดและจัดกลาง)
@@ -49,7 +88,14 @@
             /* ลดขนาดฟอนต์และช่องว่างลงนิดนึงตอนพิมพ์ */
             .tag-box { border: 1.5px solid #000; }
             .tag-box td { font-size: 10px; padding: 3px 6px; }
+            .tag-top-label, .tag-top-value { height: 24px; }
+            .part-no-value { font-size: 8.5px !important; }
+            .tag-company-cell { font-size: 8.5px !important; padding-top: 2px !important; padding-bottom: 2px !important; }
             .tag-img-container { height: 50px; }
+            .tag-v2 td { padding: 2px 5px; }
+            .tag-v2 .tag-id-head { min-height: 24px; padding: 2px 6px; font-size: 9px; }
+            .tag-v2 .tag-id-value { min-height: 22px; padding: 2px 6px; font-size: 9px; }
+            .tag-v2 .tag-img-container { height: 32px; }
         }
     </style>
 </head>
@@ -153,7 +199,7 @@
     <script>
         // =========================================================
         // 🔴 ใส่ URL Google Apps Script ที่นี่
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzqCKW-BQhoqusizjbi40-QeNq8mogyh4ynT7O6WqQtSUa7TSOpUP95OKGKUCty0S6Udw/exec"; 
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxFw17n7qiGq8tnYBtBqqh0q6QbBxL-ud5lEx1RBzdPodv5w2gqY_kAcy5FYWHOGWujHQ/exec"; 
         // =========================================================
         
         let allData = [];
@@ -313,11 +359,60 @@
         // =========================================================
         function extractDriveImageId(url) {
             if (!url) return null;
-            const match = url.match(/[-\w]{25,}/);
-            if (match) {
-                return match[0];
+            const urlStr = String(url).trim();
+
+            const fileMatch = urlStr.match(/\/file\/d\/([a-zA-Z0-9_-]+)/i);
+            if (fileMatch && fileMatch[1]) return fileMatch[1];
+
+            const openMatch = urlStr.match(/[?&]id=([a-zA-Z0-9_-]+)/i);
+            if (openMatch && openMatch[1]) return openMatch[1];
+
+            const genericMatch = urlStr.match(/[-\w]{25,}/);
+            if (genericMatch) return genericMatch[0];
+
+            return urlStr;
+        }
+
+        function getGoogleDriveImageTag(rawImageLink) {
+            if (!rawImageLink) {
+                return '<span class="text-gray-300 text-xs font-bold">ไม่มีรูปภาพ</span>';
             }
-            return url; 
+
+            const cleanLink = String(rawImageLink).trim();
+
+            if (cleanLink.startsWith('data:image/')) {
+                return `<img src="${cleanLink}" alt="Part Photo">`;
+            }
+
+            const fileIdOrUrl = extractDriveImageId(cleanLink);
+            if (!fileIdOrUrl || fileIdOrUrl.length <= 5) {
+                return '<span class="text-red-500 text-[10px] font-bold text-center">ลิงก์รูปไม่ถูกต้อง</span>';
+            }
+
+            if (fileIdOrUrl.startsWith('http://') || fileIdOrUrl.startsWith('https://')) {
+                return `<img src="${fileIdOrUrl}" alt="Part Photo" referrerpolicy="no-referrer"
+                             onerror="this.outerHTML='<span class=\'text-red-500 text-[10px] font-bold text-center\'>ลิงก์ไม่ถูกต้อง</span>'">`;
+            }
+
+            const candidates = [
+                `https://drive.google.com/thumbnail?id=${fileIdOrUrl}&sz=w1000`,
+                `https://drive.google.com/uc?export=view&id=${fileIdOrUrl}`,
+                `https://drive.google.com/uc?export=download&id=${fileIdOrUrl}`,
+                `https://lh3.googleusercontent.com/d/${fileIdOrUrl}=w1000`
+            ];
+            const encodedCandidates = JSON.stringify(candidates).replace(/"/g, '&quot;');
+
+            return `<img src="${candidates[0]}" alt="Part Photo" referrerpolicy="no-referrer"
+                         onerror="(function(img){
+                            const urls = ${encodedCandidates};
+                            const nextIndex = Number(img.dataset.tryIndex || '0') + 1;
+                            if (nextIndex < urls.length) {
+                                img.dataset.tryIndex = String(nextIndex);
+                                img.src = urls[nextIndex];
+                            } else {
+                                img.outerHTML = '<span class=\'text-red-500 text-[10px] font-bold text-center\'>โหลดรูปไม่ได้<br>(ตรวจสิทธิ์แชร์ Google Drive)</span>';
+                            }
+                         })(this)">`;
         }
 
         function buildTagHTML(item, dateStr) {
@@ -331,49 +426,92 @@
                 }
             }
 
-            const fileIdOrUrl = extractDriveImageId(rawImageLink);
-            let imageTag = '<span class="text-gray-300 text-xs font-bold">ไม่มีรูปภาพ</span>';
-            
-            if (fileIdOrUrl && fileIdOrUrl.length > 5) {
-                if (!fileIdOrUrl.includes('/') && fileIdOrUrl.length >= 25) {
-                    const url1 = `https://drive.google.com/uc?export=view&id=${fileIdOrUrl}`;
-                    const url2 = `https://lh3.googleusercontent.com/d/${fileIdOrUrl}`;
-                    
-                    imageTag = `<img src="${url1}" alt="Part Photo" 
-                                     onload="this.style.display='block'" 
-                                     onerror="if(!this.dataset.retried){ this.dataset.retried='true'; this.src='${url2}'; } else { this.outerHTML='<span class=\\'text-red-500 text-[10px] font-bold text-center\\'>โหลดรูปไม่ได้<br>(ลืมเปิดแชร์ลิงก์เป็นสาธารณะ?)</span>'; }">`;
-                } else {
-                    imageTag = `<img src="${fileIdOrUrl}" alt="Part Photo" 
-                                     onload="this.style.display='block'" 
-                                     onerror="this.outerHTML='<span class=\\'text-red-500 text-[10px] font-bold text-center\\'>ลิงก์ไม่ถูกต้อง</span>'">`;
-                }
-            }
+            const imageTag = getGoogleDriveImageTag(rawImageLink);
 
-            // ฟังก์ชันซ่อนค่า หากค่าเป็น 0, '0', null, undefined หรือว่างเปล่า ให้คืนค่าว่างไปเลย
             const clearZero = (val) => {
                 if (val === 0 || val === '0' || val === null || val === undefined || val === '') return '';
                 return val;
             };
 
+            const idCode = clearZero(item['ID Code']);
+            const hasIdCode = String(idCode).trim() !== '';
+
+            if (hasIdCode) {
+                return `
+                    <table class="tag-box tag-v2 bg-white">
+                        <colgroup>
+                            <col style="width:22%">
+                            <col style="width:38%">
+                            <col style="width:18%">
+                            <col style="width:22%">
+                        </colgroup>
+                        <tr>
+                            <td class="font-bold uppercase bg-gray-100 tag-top-label">Customer</td>
+                            <td class="text-center font-bold text-lg uppercase tag-top-value" colspan="3">${clearZero(item['Customer'])}</td>
+                        </tr>
+                        <tr>
+                            <td class="font-bold uppercase bg-gray-100">Model</td>
+                            <td class="text-center font-bold uppercase tag-singleline">${clearZero(item['Model'])}</td>
+                            <td class="font-bold text-center uppercase bg-gray-100">Date</td>
+                            <td class="text-center font-bold tag-singleline">${dateStr}</td>
+                        </tr>
+                        <tr>
+                            <td class="font-bold text-xs uppercase bg-gray-100">Part Name</td>
+                            <td class="text-center font-bold text-sm uppercase tag-singleline" colspan="3">${clearZero(item['Part name'])}</td>
+                        </tr>
+                        <tr>
+                            <td class="font-bold text-xs uppercase bg-gray-100">Part Number</td>
+                            <td class="text-center font-bold uppercase part-no-value" colspan="3">${clearZero(item['Part no'])}</td>
+                        </tr>
+                        <tr>
+                            <td class="font-bold uppercase bg-gray-100">Quantity</td>
+                            <td class="text-center"><span class="font-bold text-xl">${clearZero(item['Qty pcs'])}</span> Pcs.</td>
+                            <td class="tag-right-panel" colspan="2" rowspan="2">
+                                <div class="tag-right-panel-inner">
+                                    <div class="tag-id-head">ID Code.</div>
+                                    <div class="tag-id-value">${idCode}</div>
+                                    <div class="tag-img-container">${imageTag}</div>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-bold uppercase bg-gray-100">Operator</td>
+                            <td></td>
+                        </tr>
+                        <tr>
+                            <td class="font-bold bg-gray-50 tag-company-cell" colspan="4">
+                                Thai Cubic Technology Co.,Ltd.
+                            </td>
+                        </tr>
+                    </table>
+                `;
+            }
+
             return `
-                <table class="tag-box bg-white">
+                <table class="tag-box tag-v1 bg-white">
+                    <colgroup>
+                        <col style="width:22%">
+                        <col style="width:38%">
+                        <col style="width:18%">
+                        <col style="width:22%">
+                    </colgroup>
                     <tr>
-                        <td class="font-bold w-[25%] uppercase bg-gray-100">Customer</td>
-                        <td class="text-center font-bold text-lg uppercase" colspan="3">${clearZero(item['Customer'])}</td>
+                        <td class="font-bold uppercase bg-gray-100 tag-top-label">Customer</td>
+                        <td class="text-center font-bold text-lg uppercase tag-top-value" colspan="3">${clearZero(item['Customer'])}</td>
                     </tr>
                     <tr>
                         <td class="font-bold uppercase bg-gray-100">Model</td>
-                        <td class="text-center font-bold uppercase w-[35%]">${clearZero(item['Model'])}</td>
-                        <td class="font-bold text-center w-[15%] uppercase bg-gray-100">Date</td>
-                        <td class="text-center font-bold w-[25%]">${dateStr}</td>
+                        <td class="text-center font-bold uppercase tag-singleline">${clearZero(item['Model'])}</td>
+                        <td class="font-bold text-center uppercase bg-gray-100">Date</td>
+                        <td class="text-center font-bold tag-singleline">${dateStr}</td>
                     </tr>
                     <tr>
                         <td class="font-bold text-xs uppercase bg-gray-100">Part Name</td>
-                        <td class="text-center font-bold text-sm uppercase" colspan="3">${clearZero(item['Part name'])}</td>
+                        <td class="text-center font-bold text-sm uppercase tag-singleline" colspan="3">${clearZero(item['Part name'])}</td>
                     </tr>
                     <tr>
                         <td class="font-bold text-xs uppercase bg-gray-100">Part Number</td>
-                        <td class="text-center font-bold text-sm uppercase" colspan="3">${clearZero(item['Part no'])}</td>
+                        <td class="text-center font-bold uppercase part-no-value" colspan="3">${clearZero(item['Part no'])}</td>
                     </tr>
                     <tr>
                         <td class="font-bold uppercase bg-gray-100">Quantity</td>
@@ -387,7 +525,7 @@
                         <td></td>
                     </tr>
                     <tr>
-                        <td class="font-bold text-[9px] text-center uppercase tracking-widest bg-gray-50" colspan="4">
+                        <td class="font-bold bg-gray-50 tag-company-cell" colspan="4">
                             Thai Cubic Technology Co.,Ltd.
                         </td>
                     </tr>
@@ -422,7 +560,7 @@
             if (!selectedItem) return;
             const dateStr = getFormattedDate();
             document.getElementById('single-preview-container').innerHTML = `
-                <div class="w-full shadow-md bg-white h-[200px]">
+                <div class="w-full shadow-md bg-white">
                     ${buildTagHTML(selectedItem, dateStr)}
                 </div>
             `;
