@@ -357,7 +357,7 @@
         // =========================================================
         // อัปเดตระบบดึงรูปจาก Google Drive (แก้ปัญหาภาพไม่แสดง)
         // =========================================================
-        function extractDriveImageId(url) {
+                function extractDriveImageId(url) {
             if (!url) return null;
             const urlStr = String(url).trim();
 
@@ -373,27 +373,53 @@
             return urlStr;
         }
 
+        function normalizeImageSource(rawImageValue) {
+            if (!rawImageValue) return null;
+
+            const cleanValue = String(rawImageValue).trim();
+            if (!cleanValue) return null;
+
+            if (cleanValue.startsWith('data:image/')) {
+                return { type: 'data-url', src: cleanValue };
+            }
+
+            // รองรับ Base64 ดิบที่ไม่มี data URL prefix
+            if (/^[A-Za-z0-9+/=\r\n]+$/.test(cleanValue) && cleanValue.length > 100) {
+                return { type: 'data-url', src: `data:image/png;base64,${cleanValue.replace(/\s+/g, '')}` };
+            }
+
+            if (cleanValue.startsWith('http://') || cleanValue.startsWith('https://')) {
+                return { type: 'url', src: cleanValue };
+            }
+
+            const maybeDriveId = extractDriveImageId(cleanValue);
+            if (maybeDriveId && maybeDriveId.length > 5) {
+                return { type: 'drive-id', src: maybeDriveId };
+            }
+
+            return null;
+        }
+
         function getGoogleDriveImageTag(rawImageLink) {
             if (!rawImageLink) {
                 return '<span class="text-gray-300 text-xs font-bold">ไม่มีรูปภาพ</span>';
             }
 
-            const cleanLink = String(rawImageLink).trim();
-
-            if (cleanLink.startsWith('data:image/')) {
-                return `<img src="${cleanLink}" alt="Part Photo">`;
-            }
-
-            const fileIdOrUrl = extractDriveImageId(cleanLink);
-            if (!fileIdOrUrl || fileIdOrUrl.length <= 5) {
+            const normalizedSource = normalizeImageSource(rawImageLink);
+            if (!normalizedSource) {
                 return '<span class="text-red-500 text-[10px] font-bold text-center">ลิงก์รูปไม่ถูกต้อง</span>';
             }
 
-            if (fileIdOrUrl.startsWith('http://') || fileIdOrUrl.startsWith('https://')) {
-                return `<img src="${fileIdOrUrl}" alt="Part Photo" referrerpolicy="no-referrer"
+            if (normalizedSource.type === 'data-url') {
+                return `<img src="${normalizedSource.src}" alt="Part Photo">`;
+            }
+
+            if (normalizedSource.type === 'url') {
+                return `<img src="${normalizedSource.src}" alt="Part Photo" referrerpolicy="no-referrer"
                              onerror="this.outerHTML='<span class=\'text-red-500 text-[10px] font-bold text-center\'>ลิงก์ไม่ถูกต้อง</span>'">`;
             }
 
+            const fileIdOrUrl = normalizedSource.src;
             const candidates = [
                 `https://drive.google.com/thumbnail?id=${fileIdOrUrl}&sz=w1000`,
                 `https://drive.google.com/uc?export=view&id=${fileIdOrUrl}`,
@@ -414,7 +440,6 @@
                             }
                          })(this)">`;
         }
-
         function buildTagHTML(item, dateStr) {
             let rawImageLink = item['Photo base64'] || item['Image URL'] || item['Photo'];
             if (!rawImageLink) {
@@ -602,3 +627,4 @@
     </script>
 </body>
 </html>
+
